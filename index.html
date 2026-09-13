@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lead Enrichment &amp; ICP Scoring</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<style>
+  :root {
+    --accent: #0d9488;
+    --accent-dark: #0f766e;
+    --accent-light: #ccfbf1;
+    --accent-soft: #f0fdfa;
+
+    --ink: #0f172a;
+    --ink-soft: #475569;
+    --ink-faint: #94a3b8;
+
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --border-soft: #eef2f7;
+
+    --fit-bg: #dcfce7;   --fit-text: #15803d;   --fit-dot: #22c55e;
+    --likely-bg: #dbeafe; --likely-text: #1d4ed8; --likely-dot: #3b82f6;
+    --maybe-bg: #fef3c7; --maybe-text: #b45309; --maybe-dot: #f59e0b;
+    --not-bg: #fee2e2;   --not-text: #b91c1c;   --not-dot: #ef4444;
+    --review-bg: #f1f5f9; --review-text: #475569; --review-dot: #94a3b8;
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root { min-height: 100vh; }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 24px 64px;
+  }
+
+  /* ---------- Header ---------- */
+  .app-header {
+    padding: 28px 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-soft);
+    margin-bottom: 28px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 12px; }
+
+  .brand-mark {
+    width: 40px; height: 40px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 800; font-size: 17px;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-md);
+  }
+
+  .brand-text h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+  .brand-text p { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); }
+
+  .header-note {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .header-note .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  /* ---------- Section / Card ---------- */
+  .section { margin-bottom: 28px; }
+
+  .section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .section-heading h2 { font-size: 16px; margin: 0; font-weight: 700; }
+  .section-heading .step-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 7px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    font-size: 12px; font-weight: 700; margin-right: 8px;
+  }
+  .section-heading .sub { font-size: 12.5px; color: var(--ink-faint); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 22px 24px;
+  }
+
+  /* ---------- Buttons ---------- */
+  .btn {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
+  .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-dark); }
+  .btn-ghost { background: transparent; color: var(--ink-soft); }
+  .btn-ghost:hover:not(:disabled) { background: var(--border-soft); color: var(--ink); }
+  .btn-danger { background: transparent; color: var(--not-text); }
+  .btn-danger:hover:not(:disabled) { background: var(--not-bg); }
+  .btn-sm { padding: 6px 11px; font-size: 12.5px; }
+
+  /* ---------- Form controls ---------- */
+  label.field-label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .field-hint { font-size: 11.5px; color: var(--ink-faint); margin-top: 5px; }
+
+  input[type="text"], input[type="number"], select {
+    width: 100%;
+    font-family: inherit;
+    font-size: 13.5px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input[type="text"]:focus, input[type="number"]:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+  .form-field { display: flex; flex-direction: column; }
+  .form-field.span-2 { grid-column: span 2; }
+  .range-row { display: flex; gap: 10px; align-items: center; }
+  .range-row input { flex: 1; }
+  .range-row span { color: var(--ink-faint); font-size: 12.5px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; min-height: 20px; }
+  .chip {
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    border: 1px solid var(--accent-light);
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  .chip.exclude { background: var(--not-bg); color: var(--not-text); border-color: #fecaca; }
+
+  .profile-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-bottom: 18px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .profile-bar select { width: auto; min-width: 180px; }
+  .profile-bar input[type="text"] { width: auto; min-width: 160px; }
+  .profile-bar .spacer { flex: 1; }
+  .save-status { font-size: 12px; color: var(--accent-dark); opacity: 0; transition: opacity 0.2s; }
+  .save-status.show { opacity: 1; }
+
+  /* ---------- Run bar ---------- */
+  .run-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .run-bar .run-info { display: flex; flex-direction: column; gap: 4px; }
+  .run-bar .run-info .headline { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .run-bar .run-info .sub { font-size: 12.5px; color: var(--ink-faint); }
+  .run-bar .run-info .sub.stale { color: var(--maybe-text); font-weight: 600; }
+  .btn-lg { padding: 11px 22px; font-size: 14px; }
+
+  .placeholder-card { text-align: center; padding: 40px 20px; color: var(--ink-faint); font-size: 13.5px; }
+  .placeholder-card .icon { font-size: 24px; margin-bottom: 8px; }
+
+  /* ---------- Upload / Dropzone ---------- */
+  .dropzone {
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 26px 20px;
+    text-align: center;
+    background: var(--bg);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone .icon { font-size: 22px; margin-bottom: 6px; }
+  .dropzone .primary-text { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .dropzone .secondary-text { font-size: 12px; color: var(--ink-faint); margin-top: 3px; }
+
+  .source-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .source-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  }
+  .source-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+
+  /* ---------- Tables ---------- */
+  .table-scroll { overflow-x: auto; margin-top: 14px; border-radius: 10px; border: 1px solid var(--border-soft); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    font-weight: 700;
+    background: var(--bg);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { color: var(--accent-dark); }
+  thead th .arrow { margin-left: 4px; opacity: 0.6; }
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-soft);
+    vertical-align: middle;
+    color: var(--ink);
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #fafcfc; }
+  td.muted { color: var(--ink-faint); font-style: italic; }
+  td.remarks { color: var(--ink-soft); max-width: 280px; font-size: 12.5px; }
+  td.nowrap { white-space: nowrap; }
+
+  /* ---------- Expandable cell (double-click to see full text) ---------- */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 1000;
+  }
+  .modal-box {
+    position: relative;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 22px 24px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-md);
+  }
+  .modal-close {
+    position: absolute;
+    top: 10px; right: 10px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: var(--border-soft);
+    color: var(--ink-soft);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .modal-close:hover { background: var(--border); color: var(--ink); }
+  .modal-text {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding-right: 12px;
+  }
+
+  .preview-note { font-size: 12px; color: var(--ink-faint); margin-top: 10px; }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* ---------- Dashboard ---------- */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .stat-card .label { font-size: 11.5px; color: var(--ink-faint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat-card .value { font-size: 26px; font-weight: 800; margin-top: 6px; letter-spacing: -0.02em; }
+  .stat-card .pct { font-size: 12px; color: var(--ink-faint); margin-top: 2px; }
+  .stat-card.total { background: linear-gradient(135deg, var(--accent-soft), #ffffff); border-color: var(--accent-light); }
+  .stat-card.total .value { color: var(--accent-dark); }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+  .bar-row { display: grid; grid-template-columns: 110px 1fr 56px; align-items: center; gap: 12px; }
+  .bar-row .bar-label { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+  .bar-track { background: var(--bg); border-radius: 999px; height: 12px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+  .bar-row .bar-count { font-size: 12.5px; font-weight: 700; text-align: right; color: var(--ink); }
+
+  /* ---------- Results toolbar ---------- */
+  .results-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+  }
+  .results-toolbar .spacer { flex: 1; }
+  .search-input { position: relative; min-width: 220px; }
+  .search-input input { padding-left: 30px; }
+  .search-input .icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-faint); font-size: 13px; pointer-events: none; }
+
+  .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-pill {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink-soft);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-pill:hover { border-color: var(--accent); color: var(--accent-dark); }
+  .filter-pill.active { background: var(--ink); color: white; border-color: var(--ink); }
+
+  .empty-state { text-align: center; padding: 36px 20px; color: var(--ink-faint); font-size: 13px; }
+
+  footer.app-footer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-faint);
+    padding: 30px 0 10px;
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 860px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .form-field.span-2 { grid-column: span 1; }
+    .stat-grid { grid-template-columns: repeat(3, 1fr); }
+    .bar-row { grid-template-columns: 84px 1fr 40px; gap: 8px; }
+  }
+  @media (max-width: 520px) {
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .page { padding: 0 16px 48px; }
+    .app-header { padding-top: 20px; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* =========================================================================
+   1. CONSTANTS
+   ========================================================================= */
+
+const DEFAULT_ICP_TEMPLATE = {
+  industries: ['SaaS', 'Fintech'],
+  titleKeywords: ['Founder', 'CEO', 'CTO', 'Co-Founder', 'Director', 'VP', 'Head of'],
+  excludeKeywords: ['Assistant', 'Intern', 'Coordinator'],
+  minEmployees: 20,
+  maxEmployees: 500,
+  locations: ['United States', 'Canada', 'United Kingdom'],
+};
+
+const FIT_CATEGORIES = ['Fit', 'Likely Fit', 'Maybe', 'Not a Fit', 'Needs Review'];
+
+const FIT_STYLE = {
+  'Fit':          { bg: 'var(--fit-bg)',    text: 'var(--fit-text)',    dot: 'var(--fit-dot)' },
+  'Likely Fit':   { bg: 'var(--likely-bg)', text: 'var(--likely-text)', dot: 'var(--likely-dot)' },
+  'Maybe':        { bg: 'var(--maybe-bg)',  text: 'var(--maybe-text)',  dot: 'var(--maybe-dot)' },
+  'Not a Fit':    { bg: 'var(--not-bg)',    text: 'var(--not-text)',    dot: 'var(--not-dot)' },
+  'Needs Review': { bg: 'var(--review-bg)', text: 'var(--review-text)',dot: 'var(--review-dot)' },
+};
+
+// Hex equivalents of the FIT_STYLE colors, for use in generated documents
+// (like the colored Excel export) that don't have access to this page's CSS
+// custom properties.
+const FIT_HEX = {
+  'Fit':          { bg: '#dcfce7', text: '#15803d' },
+  'Likely Fit':   { bg: '#dbeafe', text: '#1d4ed8' },
+  'Maybe':        { bg: '#fef3c7', text: '#b45309' },
+  'Not a Fit':    { bg: '#fee2e2', text: '#b91c1c' },
+  'Needs Review': { bg: '#f1f5f9', text: '#475569' },
+};
+
+const PROFILES_KEY = 'icp_scoring_profiles_v1';
+const ACTIVE_PROFILE_KEY = 'icp_scoring_active_profile_v1';
+
+const FIELD_ALIASES = {
+  name: ['name', 'fullname', 'leadname', 'contact'],
+  title: ['title', 'jobtitle', 'position', 'role'],
+  company: ['company', 'companyname', 'organization', 'org'],
+  industry: ['industry', 'sector', 'vertical'],
+  location: ['location', 'country', 'city', 'region', 'geo'],
+  employeeCount: ['employeecount', 'employees', 'companysize', 'headcount', 'numemployees'],
+};
+
+/* =========================================================================
+   2. SMALL UTILITIES
+   ========================================================================= */
+
+function uid() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function normalizeKey(k) {
+  return String(k || '').toLowerCase().replace(/[\s_]+/g, '');
+}
+
+function splitList(str) {
+  return String(str || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function containsAny(haystack, needles) {
+  const h = haystack.toLowerCase();
+  for (const n of needles) {
+    if (n && h.includes(n.toLowerCase())) return n;
+  }
+  return null;
+}
+
+// Country -> major states/regions/cities that should also count as a match
+// for that country, since lead data often lists a city/state instead of the
+// country name itself (e.g. "Mumbai" or "Maharashtra" instead of "India").
+const REGION_ALIASES = {
+  'india': [
+    'India', 'Maharashtra', 'Karnataka', 'Tamil Nadu', 'Telangana', 'Gujarat',
+    'West Bengal', 'Uttar Pradesh', 'Haryana', 'Rajasthan', 'Kerala', 'Punjab',
+    'Andhra Pradesh', 'Delhi', 'Delhi NCR', 'Mumbai', 'Bangalore', 'Bengaluru',
+    'Pune', 'Hyderabad', 'Chennai', 'Gurgaon', 'Gurugram', 'Noida', 'Kolkata',
+    'Ahmedabad', 'Jaipur', 'Chandigarh', 'Kochi',
+  ],
+  'united states': [
+    'United States', 'USA', 'U.S.', 'US', 'America', 'California', 'Texas',
+    'New York', 'Florida', 'Illinois', 'Washington', 'Massachusetts', 'Georgia',
+    'Colorado', 'Virginia', 'North Carolina', 'Pennsylvania', 'Ohio', 'Arizona',
+    'Michigan', 'New Jersey', 'San Francisco', 'Los Angeles', 'Chicago', 'Austin',
+    'Seattle', 'Boston', 'Denver', 'Atlanta', 'Miami', 'Dallas', 'Houston',
+    'San Diego', 'Portland',
+  ],
+  'united kingdom': [
+    'United Kingdom', 'UK', 'U.K.', 'Britain', 'Great Britain', 'England',
+    'Scotland', 'Wales', 'Northern Ireland', 'London', 'Manchester', 'Birmingham',
+    'Leeds', 'Glasgow', 'Edinburgh', 'Liverpool', 'Bristol', 'Sheffield',
+    'Cardiff', 'Belfast',
+  ],
+  'canada': [
+    'Canada', 'Ontario', 'Quebec', 'British Columbia', 'Alberta', 'Toronto',
+    'Vancouver', 'Montreal', 'Calgary', 'Ottawa', 'Edmonton',
+  ],
+  'australia': [
+    'Australia', 'New South Wales', 'Victoria', 'Queensland', 'Western Australia',
+    'Sydney', 'Melbourne', 'Brisbane', 'Perth', 'Adelaide',
+  ],
+};
+
+// Expands a list of target locations (as typed into the ICP form) so that a
+// target country also matches any of its known states/cities. A target that
+// isn't a recognized country (e.g. a specific city the user typed directly)
+// is passed through unchanged and still matched by plain substring.
+function expandLocationTargets(targets) {
+  const expanded = new Set();
+  targets.forEach(t => {
+    expanded.add(t);
+    const aliases = REGION_ALIASES[t.trim().toLowerCase()];
+    if (aliases) aliases.forEach(alias => expanded.add(alias));
+  });
+  return Array.from(expanded);
+}
+
+function parseEmployeeCount(raw) {
+  if (raw === undefined || raw === null) return null;
+  const cleaned = String(raw).replace(/[,\s]/g, '');
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function joinEnglish(items) {
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
+function capitalize(str) {
+  return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch]));
+}
+
+// The original CSV headers, in their original order, for a set of parsed
+// leads — used so the preview/results tables and exports always mirror
+// exactly what was uploaded instead of a fixed set of fields.
+function getRawColumns(leads) {
+  return leads.length ? Object.keys(leads[0]._raw) : [];
+}
+
+/* =========================================================================
+   3. CSV PARSING  (maps arbitrary headers -> our Lead shape)
+   ========================================================================= */
+
+function mapRawRowToLead(rawRow) {
+  const lookup = {};
+  Object.keys(rawRow).forEach(k => {
+    lookup[normalizeKey(k)] = rawRow[k];
+  });
+
+  const lead = { _raw: rawRow };
+  Object.entries(FIELD_ALIASES).forEach(([field, aliases]) => {
+    const matchKey = aliases.find(a => lookup[a] !== undefined && lookup[a] !== null);
+    lead[field] = matchKey ? String(lookup[matchKey]).trim() : '';
+  });
+  return lead;
+}
+
+function parseCsvFile(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => resolve(result.data.map(mapRawRowToLead)),
+      error: (err) => reject(err),
+    });
+  });
+}
+
+/* =========================================================================
+   4. ICP PROFILE STORAGE (localStorage)
+   ========================================================================= */
+
+function makeDefaultProfile() {
+  return { id: uid(), name: 'Default ICP', ...DEFAULT_ICP_TEMPLATE };
+}
+
+function loadProfilesFromStorage() {
+  try {
+    const raw = localStorage.getItem(PROFILES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    }
+  } catch (e) { /* ignore corrupted storage */ }
+  const fresh = [makeDefaultProfile()];
+  persistProfiles(fresh);
+  return fresh;
+}
+
+function persistProfiles(profiles) {
+  try { localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles)); } catch (e) {}
+}
+
+function loadActiveProfileId() {
+  try { return localStorage.getItem(ACTIVE_PROFILE_KEY); } catch (e) { return null; }
+}
+
+function persistActiveProfileId(id) {
+  try { localStorage.setItem(ACTIVE_PROFILE_KEY, id); } catch (e) {}
+}
+
+/* =========================================================================
+   5. SCORING ENGINE
+   ========================================================================= */
+
+function scoreLead(lead, icp) {
+  const title = (lead.title || '').trim();
+  const industry = (lead.industry || '').trim();
+  const location = (lead.location || '').trim();
+  const employeeCount = parseEmployeeCount(lead.employeeCount);
+
+  // Step 1 — hard disqualifier: excluded title keywords always win.
+  if (title && icp.excludeKeywords.length) {
+    const hit = containsAny(title, icp.excludeKeywords);
+    if (hit) {
+      return {
+        fit: 'Not a Fit',
+        score: null,
+        reason: `Title contains excluded keyword "${hit}".`,
+      };
+    }
+  }
+
+  // Step 2 — if too much is missing, don't guess: flag for manual review.
+  const missing = [];
+  if (!title) missing.push('title');
+  if (!industry) missing.push('industry');
+  if (employeeCount === null) missing.push('employee count');
+  if (missing.length >= 2) {
+    return {
+      fit: 'Needs Review',
+      score: null,
+      reason: `Missing ${joinEnglish(missing)} — insufficient data to score confidently.`,
+    };
+  }
+
+  // Step 3 — weighted scoring across the four ICP signals.
+  let score = 0;
+  const notes = [];
+
+  if (icp.industries.length) {
+    if (!industry) {
+      notes.push('industry unknown');
+    } else if (containsAny(industry, icp.industries)) {
+      score += 2;
+      notes.push(`industry matches (${industry})`);
+    } else {
+      score -= 1;
+      notes.push(`industry doesn't match target list (${industry})`);
+    }
+  }
+
+  if (icp.titleKeywords.length) {
+    if (!title) {
+      notes.push('title unknown');
+    } else {
+      const hit = containsAny(title, icp.titleKeywords);
+      if (hit) {
+        score += 2;
+        notes.push(`title is decision-maker level (${title})`);
+      } else {
+        score -= 1;
+        notes.push(`title doesn't match target seniority (${title})`);
+      }
+    }
+  }
+
+  if (icp.minEmployees != null || icp.maxEmployees != null) {
+    if (employeeCount === null) {
+      notes.push('employee count unknown');
+    } else {
+      const min = icp.minEmployees != null ? icp.minEmployees : -Infinity;
+      const max = icp.maxEmployees != null ? icp.maxEmployees : Infinity;
+      if (employeeCount >= min && employeeCount <= max) {
+        score += 2;
+        notes.push(`company size in range (${employeeCount})`);
+      } else if (employeeCount < min) {
+        score -= 1;
+        notes.push(`company size ${employeeCount} is below target minimum of ${icp.minEmployees}`);
+      } else {
+        score -= 1;
+        notes.push(`company size ${employeeCount} exceeds target maximum of ${icp.maxEmployees}`);
+      }
+    }
+  }
+
+  if (icp.locations.length) {
+    if (!location) {
+      notes.push('location unknown');
+    } else if (containsAny(location, icp.locations)) {
+      score += 1;
+      notes.push(`location matches (${location})`);
+    } else {
+      score -= 1;
+      notes.push(`location outside target regions (${location})`);
+    }
+  }
+
+  let fit;
+  if (score >= 6) fit = 'Fit';
+  else if (score >= 4) fit = 'Likely Fit';
+  else if (score >= 2) fit = 'Maybe';
+  else fit = 'Not a Fit';
+
+  const reason = notes.length
+    ? capitalize(notes.join('; ')) + '.'
+    : 'No ICP criteria configured — add industries, titles, size, or locations to score leads.';
+
+  return { fit, score, reason };
+}
+
+function scoreAllLeads(leads, icp) {
+  return leads.map(lead => ({ ...lead, ...scoreLead(lead, icp) }));
+}
+
+/* =========================================================================
+   6. SMALL PRESENTATIONAL COMPONENTS
+   ========================================================================= */
+
+function Card({ children, style }) {
+  return <div className="card" style={style}>{children}</div>;
+}
+
+function SectionHeading({ step, title, sub }) {
+  return (
+    <div className="section-heading">
+      <h2><span className="step-badge">{step}</span>{title}</h2>
+      {sub && <span className="sub">{sub}</span>}
+    </div>
+  );
+}
+
+function FitBadge({ fit }) {
+  const style = FIT_STYLE[fit] || FIT_STYLE['Needs Review'];
+  return (
+    <span className="badge" style={{ background: style.bg, color: style.text }}>
+      <span className="dot" style={{ background: style.dot }}></span>
+      {fit}
+    </span>
+  );
+}
+
+function ChipRow({ items, exclude }) {
+  if (!items.length) return <div className="chip-row"><span className="field-hint">Not filtered on</span></div>;
+  return (
+    <div className="chip-row">
+      {items.map((item, i) => (
+        <span key={i} className={exclude ? 'chip exclude' : 'chip'}>{item}</span>
+      ))}
+    </div>
+  );
+}
+
+function TextModal({ text, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+        <div className="modal-text">{text}</div>
+      </div>
+    </div>
+  );
+}
+
+// A table cell that truncates long content with an ellipsis (so every row
+// stays the same height) and shows the full text in a modal on double-click.
+function TruncatedCell({ value, onExpand, className, style }) {
+  if (!value) return <td className={className} style={style}><span className="muted">—</span></td>;
+  return (
+    <td
+      className={className}
+      style={style}
+      onDoubleClick={() => onExpand(value)}
+      title="Double-click to view full text"
+    >
+      {value}
+    </td>
+  );
+}
+
+function PlaceholderCard({ text }) {
+  return (
+    <Card>
+      <div className="placeholder-card">
+        <div className="icon">⏳</div>
+        {text}
+      </div>
+    </Card>
+  );
+}
+
+/* =========================================================================
+   7. UPLOAD & PREVIEW CARD
+   ========================================================================= */
+
+function UploadCard({ leads, sourceLabel, onLoadLeads }) {
+  const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState('');
+  const [expandedText, setExpandedText] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFile = useCallback(async (file) => {
+    if (!file) return;
+    setError('');
+    try {
+      const parsed = await parseCsvFile(file);
+      if (!parsed.length) {
+        setError('That file parsed but contained no rows. Check the CSV and try again.');
+        return;
+      }
+      onLoadLeads(parsed, file.name);
+    } catch (e) {
+      setError('Could not parse that file as CSV. Please check the format and try again.');
+    }
+  }, [onLoadLeads]);
+
+  const previewRows = leads.slice(0, 10);
+  const rawColumns = getRawColumns(leads);
+
+  return (
+    <Card>
+      <div
+        className={`dropzone${dragOver ? ' drag-over' : ''}`}
+        onClick={() => fileInputRef.current && fileInputRef.current.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const file = e.dataTransfer.files && e.dataTransfer.files[0];
+          handleFile(file);
+        }}
+      >
+        <div className="icon">⬆</div>
+        <div className="primary-text">Click to browse or drag a CSV file here</div>
+        <div className="secondary-text">Expected columns: name, title, company, industry, location, employee count</div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          style={{ display: 'none' }}
+          onChange={(e) => handleFile(e.target.files[0])}
+        />
+      </div>
+
+      {error && <div className="preview-note" style={{ color: 'var(--not-text)' }}>{error}</div>}
+
+      {leads.length === 0 ? (
+        <div className="placeholder-card">
+          <div className="icon">📄</div>
+          Upload a CSV to get started.
+        </div>
+      ) : (
+        <>
+          <div className="source-row">
+            <span className="source-pill">
+              <span className="dot"></span>
+              {sourceLabel} · {leads.length} lead{leads.length === 1 ? '' : 's'}
+            </span>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            >
+              Upload a different file
+            </button>
+          </div>
+
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  {rawColumns.map(col => <th key={col}>{col}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {previewRows.map((lead, i) => (
+                  <tr key={i}>
+                    {rawColumns.map(col => (
+                      <TruncatedCell key={col} value={lead._raw[col]} onExpand={setExpandedText} />
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="preview-note">
+            Showing {previewRows.length} of {leads.length} rows. Set your ICP criteria below, then click "Run ICP Check" to score these leads.
+          </div>
+        </>
+      )}
+
+      {expandedText && <TextModal text={expandedText} onClose={() => setExpandedText(null)} />}
+    </Card>
+  );
+}
+
+/* =========================================================================
+   8. ICP CONFIGURATION CARD
+   ========================================================================= */
+
+function SaveProfileModal({ initialName, onSave, onCancel }) {
+  const [name, setName] = useState(initialName || '');
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onCancel}>✕</button>
+        <label className="field-label">Name this ICP profile</label>
+        <input
+          type="text"
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Enterprise SaaS ICP"
+          onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onSave(name.trim()); }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button className="btn btn-secondary btn-sm" onClick={onCancel}>Cancel</button>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={!name.trim()}
+            onClick={() => onSave(name.trim())}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IcpFormCard({ profiles, activeProfileId, draft, onDraftChange, onSelectProfile, onSaveProfile, onNewProfile, onDeleteProfile }) {
+  const [statusMsg, setStatusMsg] = useState('');
+  const [showSaveModal, setShowSaveModal] = useState(false);
+
+  const showStatus = (msg) => {
+    setStatusMsg(msg);
+    setTimeout(() => setStatusMsg(''), 1800);
+  };
+
+  const update = (field, value) => onDraftChange({ ...draft, [field]: value });
+
+  return (
+    <Card>
+      <div className="profile-bar">
+        <label className="field-label" style={{ marginBottom: 0 }}>Profile</label>
+        <select
+          value={activeProfileId || ''}
+          onChange={(e) => onSelectProfile(e.target.value)}
+        >
+          <option value="">— New Profile —</option>
+          {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+
+        <div className="spacer"></div>
+        <span className={`save-status${statusMsg ? ' show' : ''}`}>{statusMsg}</span>
+        <button className="btn btn-secondary btn-sm" onClick={onNewProfile}>+ New Profile</button>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowSaveModal(true)}>
+          Save Profile
+        </button>
+        <button
+          className="btn btn-danger btn-sm"
+          disabled={profiles.length <= 1}
+          onClick={onDeleteProfile}
+        >
+          Delete
+        </button>
+      </div>
+
+      {showSaveModal && (
+        <SaveProfileModal
+          initialName={draft.name}
+          onCancel={() => setShowSaveModal(false)}
+          onSave={(name) => {
+            onSaveProfile(name);
+            setShowSaveModal(false);
+            showStatus('Saved ✓');
+          }}
+        />
+      )}
+
+      <div className="form-grid">
+        <div className="form-field">
+          <label className="field-label">Target industries</label>
+          <input
+            type="text"
+            value={draft.industriesText}
+            onChange={(e) => update('industriesText', e.target.value)}
+            placeholder="SaaS, Fintech, Healthcare"
+          />
+          <ChipRow items={splitList(draft.industriesText)} />
+        </div>
+
+        <div className="form-field">
+          <label className="field-label">Target locations / countries</label>
+          <input
+            type="text"
+            value={draft.locationsText}
+            onChange={(e) => update('locationsText', e.target.value)}
+            placeholder="United States, Canada, United Kingdom"
+          />
+          <ChipRow items={splitList(draft.locationsText)} />
+        </div>
+
+        <div className="form-field">
+          <label className="field-label">Target titles / seniority keywords</label>
+          <input
+            type="text"
+            value={draft.titleKeywordsText}
+            onChange={(e) => update('titleKeywordsText', e.target.value)}
+            placeholder="Founder, CEO, Director, VP"
+          />
+          <ChipRow items={splitList(draft.titleKeywordsText)} />
+        </div>
+
+        <div className="form-field">
+          <label className="field-label">Excluded titles / keywords</label>
+          <input
+            type="text"
+            value={draft.excludeKeywordsText}
+            onChange={(e) => update('excludeKeywordsText', e.target.value)}
+            placeholder="Assistant, Intern, Coordinator"
+          />
+          <ChipRow items={splitList(draft.excludeKeywordsText)} exclude />
+        </div>
+
+        <div className="form-field span-2">
+          <label className="field-label">Employee count range</label>
+          <div className="range-row">
+            <input
+              type="number"
+              min="0"
+              value={draft.minEmployees}
+              onChange={(e) => update('minEmployees', e.target.value)}
+              placeholder="Min"
+            />
+            <span>to</span>
+            <input
+              type="number"
+              min="0"
+              value={draft.maxEmployees}
+              onChange={(e) => update('maxEmployees', e.target.value)}
+              placeholder="Max"
+            />
+            <span>employees</span>
+          </div>
+          <div className="field-hint">Leave either side blank for no lower/upper bound.</div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/* =========================================================================
+   8.5. RUN BAR — explicit "Run ICP Check" action
+   ========================================================================= */
+
+function RunBar({ leadsCount, hasRun, isStale, scoredCount, onRun }) {
+  let sub;
+  if (leadsCount === 0) {
+    sub = <span className="sub">Upload a CSV above to get started.</span>;
+  } else if (!hasRun) {
+    sub = <span className="sub">Set your ICP criteria above, then run the check.</span>;
+  } else if (isStale) {
+    sub = <span className="sub stale">⚠ Leads or ICP criteria changed since the last run — re-run to refresh results.</span>;
+  } else {
+    sub = <span className="sub">✓ {scoredCount} lead{scoredCount === 1 ? '' : 's'} scored against your current ICP.</span>;
+  }
+
+  let buttonLabel;
+  if (leadsCount === 0) buttonLabel = 'Upload Leads First';
+  else if (hasRun) buttonLabel = '↻ Re-run ICP Check';
+  else buttonLabel = `▶ Run ICP Check on ${leadsCount} Lead${leadsCount === 1 ? '' : 's'}`;
+
+  return (
+    <Card>
+      <div className="run-bar">
+        <div className="run-info">
+          <span className="headline">
+            {hasRun ? 'ICP check complete' : 'Ready to run the ICP check'}
+          </span>
+          {sub}
+        </div>
+        <button
+          className="btn btn-primary btn-lg"
+          disabled={leadsCount === 0}
+          onClick={onRun}
+        >
+          {buttonLabel}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/* =========================================================================
+   9. SUMMARY DASHBOARD
+   ========================================================================= */
+
+function SummaryDashboard({ scoredLeads }) {
+  const total = scoredLeads.length;
+  const counts = useMemo(() => {
+    const c = { 'Fit': 0, 'Likely Fit': 0, 'Maybe': 0, 'Not a Fit': 0, 'Needs Review': 0 };
+    scoredLeads.forEach(l => { c[l.fit] = (c[l.fit] || 0) + 1; });
+    return c;
+  }, [scoredLeads]);
+
+  const pct = (n) => total ? Math.round((n / total) * 100) : 0;
+
+  return (
+    <Card>
+      <div className="stat-grid">
+        <div className="stat-card total">
+          <div className="label">Total Leads</div>
+          <div className="value">{total}</div>
+          <div className="pct">100%</div>
+        </div>
+        {FIT_CATEGORIES.map(cat => (
+          <div className="stat-card" key={cat}>
+            <div className="label">{cat}</div>
+            <div className="value" style={{ color: FIT_STYLE[cat].text }}>{counts[cat]}</div>
+            <div className="pct">{pct(counts[cat])}%</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bar-chart">
+        {FIT_CATEGORIES.map(cat => (
+          <div className="bar-row" key={cat}>
+            <div className="bar-label">{cat}</div>
+            <div className="bar-track">
+              <div
+                className="bar-fill"
+                style={{ width: `${pct(counts[cat])}%`, background: FIT_STYLE[cat].dot }}
+              ></div>
+            </div>
+            <div className="bar-count">{counts[cat]}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/* =========================================================================
+   10. RESULTS TABLE + EXPORT
+   ========================================================================= */
+
+function triggerDownload(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// YYYY-MM-DD, for stamping export filenames so the output is never
+// mistaken for the original upload.
+function todayStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Plain CSV export — every original uploaded column, passed through exactly
+// as parsed (same values, same order, no trimming/reformatting), with only
+// 'ICP Fit' and 'Remarks' appended as new columns. No cell styling: CSV is
+// plain text and has no way to represent color in any spreadsheet app —
+// see exportToExcelColored for an actually-colored file.
+function exportToCsv(scoredLeads) {
+  const rows = scoredLeads.map(l => ({
+    ...l._raw,
+    'ICP Fit': l.fit,
+    Remarks: l.reason,
+  }));
+  const csv = Papa.unparse(rows);
+  triggerDownload(csv, `leads_scored_${todayStamp()}.csv`, 'text/csv;charset=utf-8;');
+}
+
+// Excel-compatible export: every original column passed through unstyled,
+// with only the 'ICP Fit' and 'Remarks' cells colored by category (Fit =
+// green, Likely Fit = light blue, Maybe = yellow, Not a Fit = red, Needs
+// Review = gray). Built as an HTML table saved with an .xls extension/MIME
+// type — the standard way to get real cell colors into a file Excel opens
+// natively, since a true .csv cannot carry styling at all.
+function exportToExcelColored(scoredLeads) {
+  const rawColumns = getRawColumns(scoredLeads);
+  const font = 'font-family:Calibri,Arial,sans-serif;font-size:12px;';
+  const plainCell = `padding:8px 12px;border:1px solid #e2e8f0;background:#ffffff;color:#0f172a;${font}`;
+
+  const headerCells = [...rawColumns, 'ICP Fit', 'Remarks']
+    .map(h => `<th style="background:#0f172a;color:#ffffff;padding:8px 12px;border:1px solid #0f172a;text-align:left;${font}">${escapeHtml(h)}</th>`)
+    .join('');
+
+  const bodyRows = scoredLeads.map(l => {
+    const style = FIT_HEX[l.fit] || FIT_HEX['Needs Review'];
+    const coloredCell = `padding:8px 12px;border:1px solid #e2e8f0;background:${style.bg};color:${style.text};${font}`;
+    // Original columns stay plain/unstyled — only ICP Fit and Remarks are colored.
+    const dataCells = rawColumns
+      .map(col => `<td style="${plainCell}">${escapeHtml(l._raw[col])}</td>`)
+      .join('');
+    const fitCell = `<td style="${coloredCell}font-weight:bold;">${escapeHtml(l.fit)}</td>`;
+    const remarksCell = `<td style="${coloredCell}">${escapeHtml(l.reason)}</td>`;
+    return `<tr>${dataCells}${fitCell}${remarksCell}</tr>`;
+  }).join('');
+
+  const html = `<html><head><meta charset="UTF-8"></head><body>
+    <table style="border-collapse:collapse;${font}">
+      <thead><tr>${headerCells}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+  </body></html>`;
+
+  triggerDownload(html, `leads_scored_${todayStamp()}.xls`, 'application/vnd.ms-excel');
+}
+
+const FIT_SORT_KEY = 'ICP Fit';
+
+function getSortValue(lead, key) {
+  return key === FIT_SORT_KEY ? lead.fit : lead._raw[key];
+}
+
+function ResultsCard({ scoredLeads }) {
+  const [search, setSearch] = useState('');
+  const [filterFit, setFilterFit] = useState('All');
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+  const [expandedText, setExpandedText] = useState(null);
+
+  const rawColumns = useMemo(() => getRawColumns(scoredLeads), [scoredLeads]);
+
+  const counts = useMemo(() => {
+    const c = {};
+    scoredLeads.forEach(l => { c[l.fit] = (c[l.fit] || 0) + 1; });
+    return c;
+  }, [scoredLeads]);
+
+  const filtered = useMemo(() => {
+    let rows = scoredLeads;
+    if (filterFit !== 'All') rows = rows.filter(l => l.fit === filterFit);
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      rows = rows.filter(l =>
+        Object.values(l._raw).some(v => String(v || '').toLowerCase().includes(q))
+      );
+    }
+    if (sortKey) {
+      rows = [...rows].sort((a, b) => {
+        const strA = String(getSortValue(a, sortKey) ?? '').trim();
+        const strB = String(getSortValue(b, sortKey) ?? '').trim();
+        const numA = strA === '' ? NaN : Number(strA);
+        const numB = strB === '' ? NaN : Number(strB);
+        let av, bv;
+        if (Number.isFinite(numA) && Number.isFinite(numB)) {
+          av = numA; bv = numB;
+        } else {
+          av = strA.toLowerCase(); bv = strB.toLowerCase();
+        }
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    return rows;
+  }, [scoredLeads, filterFit, search, sortKey, sortDir]);
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const sortArrow = (key) => sortKey === key && <span className="arrow">{sortDir === 'asc' ? '▲' : '▼'}</span>;
+
+  return (
+    <Card>
+      <div className="results-toolbar">
+        <div className="filter-pills">
+          <button
+            className={`filter-pill${filterFit === 'All' ? ' active' : ''}`}
+            onClick={() => setFilterFit('All')}
+          >
+            All ({scoredLeads.length})
+          </button>
+          {FIT_CATEGORIES.map(cat => (
+            <button
+              key={cat}
+              className={`filter-pill${filterFit === cat ? ' active' : ''}`}
+              onClick={() => setFilterFit(cat)}
+            >
+              {cat} ({counts[cat] || 0})
+            </button>
+          ))}
+        </div>
+        <div className="spacer"></div>
+        <div className="search-input">
+          <span className="icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search leads…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => exportToCsv(scoredLeads)}>
+          ⬇ Export CSV
+        </button>
+        <button className="btn btn-secondary btn-sm" onClick={() => exportToExcelColored(scoredLeads)}>
+          ⬇ Export Colored Report (Excel)
+        </button>
+      </div>
+
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              {rawColumns.map(col => (
+                <th key={col} className="sortable" onClick={() => toggleSort(col)}>
+                  {col}{sortArrow(col)}
+                </th>
+              ))}
+              <th className="sortable" onClick={() => toggleSort(FIT_SORT_KEY)}>
+                ICP Fit{sortArrow(FIT_SORT_KEY)}
+              </th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((lead, i) => {
+              const style = FIT_STYLE[lead.fit] || FIT_STYLE['Needs Review'];
+              return (
+                <tr key={i}>
+                  {rawColumns.map(col => (
+                    <TruncatedCell key={col} value={lead._raw[col]} onExpand={setExpandedText} />
+                  ))}
+                  <td style={{ background: style.bg }}><FitBadge fit={lead.fit} /></td>
+                  <TruncatedCell
+                    value={lead.reason}
+                    onExpand={setExpandedText}
+                    className="remarks"
+                    style={{ background: style.bg, color: style.text }}
+                  />
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filtered.length === 0 && (
+          <div className="empty-state">No leads match the current filter/search.</div>
+        )}
+      </div>
+
+      {expandedText && <TextModal text={expandedText} onClose={() => setExpandedText(null)} />}
+    </Card>
+  );
+}
+
+/* =========================================================================
+   11. ROOT APP
+   ========================================================================= */
+
+function draftFromProfile(profile) {
+  return {
+    name: profile.name,
+    industriesText: profile.industries.join(', '),
+    titleKeywordsText: profile.titleKeywords.join(', '),
+    excludeKeywordsText: profile.excludeKeywords.join(', '),
+    minEmployees: profile.minEmployees ?? '',
+    maxEmployees: profile.maxEmployees ?? '',
+    locationsText: profile.locations.join(', '),
+  };
+}
+
+// The raw criteria as the user typed them — used for persisting profiles,
+// so a saved profile's Locations field shows back exactly what was entered
+// (e.g. "India"), not the expanded list of aliases used for scoring.
+function draftToProfileFields(draft) {
+  return {
+    industries: splitList(draft.industriesText),
+    titleKeywords: splitList(draft.titleKeywordsText),
+    excludeKeywords: splitList(draft.excludeKeywordsText),
+    minEmployees: draft.minEmployees === '' ? null : Number(draft.minEmployees),
+    maxEmployees: draft.maxEmployees === '' ? null : Number(draft.maxEmployees),
+    locations: splitList(draft.locationsText),
+  };
+}
+
+// The runtime ICP shape used by the scoring engine — same as above, but with
+// location targets expanded to their state/city aliases (see REGION_ALIASES).
+function draftToIcp(draft) {
+  const fields = draftToProfileFields(draft);
+  return { ...fields, locations: expandLocationTargets(fields.locations) };
+}
+
+function App() {
+  const [leads, setLeads] = useState([]);
+  const [sourceLabel, setSourceLabel] = useState('');
+
+  const [profiles, setProfiles] = useState(loadProfilesFromStorage);
+  const [activeProfileId, setActiveProfileId] = useState(() => {
+    const stored = loadActiveProfileId();
+    const list = loadProfilesFromStorage();
+    return (stored && list.some(p => p.id === stored)) ? stored : list[0].id;
+  });
+  const [draft, setDraft] = useState(() => {
+    const list = loadProfilesFromStorage();
+    const stored = loadActiveProfileId();
+    const active = list.find(p => p.id === stored) || list[0];
+    return draftFromProfile(active);
+  });
+
+  const icp = useMemo(() => draftToIcp(draft), [draft]);
+
+  const [scoredLeads, setScoredLeads] = useState([]);
+  const [hasRun, setHasRun] = useState(false);
+  const [lastRunSignature, setLastRunSignature] = useState('');
+
+  const currentSignature = useMemo(
+    () => JSON.stringify({ leads: leads.map(l => [l.name, l.title, l.company, l.industry, l.location, l.employeeCount]), icp }),
+    [leads, icp]
+  );
+  const isStale = hasRun && currentSignature !== lastRunSignature;
+
+  const handleRunCheck = () => {
+    setScoredLeads(scoreAllLeads(leads, icp));
+    setHasRun(true);
+    setLastRunSignature(currentSignature);
+  };
+
+  const handleLoadLeads = (parsed, name) => {
+    setLeads(parsed);
+    setSourceLabel(name);
+  };
+
+  const handleSelectProfile = (id) => {
+    if (!id) { handleNewProfile(); return; }
+    const profile = profiles.find(p => p.id === id);
+    if (!profile) return;
+    setActiveProfileId(id);
+    persistActiveProfileId(id);
+    setDraft(draftFromProfile(profile));
+  };
+
+  const handleNewProfile = () => {
+    setActiveProfileId(null);
+    setDraft(draftFromProfile({ name: '', industries: [], titleKeywords: [], excludeKeywords: [], minEmployees: null, maxEmployees: null, locations: [] }));
+  };
+
+  const handleSaveProfile = (name) => {
+    const isNewProfile = !profiles.some(p => p.id === activeProfileId);
+    const id = isNewProfile ? uid() : activeProfileId;
+    const updated = { id, ...draftToProfileFields(draft), name };
+    setProfiles(prev => {
+      const next = isNewProfile
+        ? [...prev, updated]
+        : prev.map(p => p.id === id ? updated : p);
+      persistProfiles(next);
+      return next;
+    });
+    setActiveProfileId(id);
+    persistActiveProfileId(id);
+    setDraft(prev => ({ ...prev, name }));
+  };
+
+  const handleDeleteProfile = () => {
+    setProfiles(prev => {
+      const next = prev.filter(p => p.id !== activeProfileId);
+      const list = next.length ? next : [makeDefaultProfile()];
+      persistProfiles(list);
+      const nextActive = list[0];
+      setActiveProfileId(nextActive.id);
+      persistActiveProfileId(nextActive.id);
+      setDraft(draftFromProfile(nextActive));
+      return list;
+    });
+  };
+
+  return (
+    <div className="page">
+      <header className="app-header">
+        <div className="brand">
+          <div className="brand-mark">IC</div>
+          <div className="brand-text">
+            <h1>Lead Enrichment &amp; ICP Scoring</h1>
+            <p>Upload leads, define your Ideal Customer Profile, and get an instant fit score with a reason for every lead.</p>
+          </div>
+        </div>
+        <div className="header-note"><span className="dot"></span>Runs entirely in your browser — nothing is uploaded</div>
+      </header>
+
+      <div className="section">
+        <SectionHeading step="1" title="Upload &amp; preview leads" sub="CSV with name, title, company, industry, location, employee count" />
+        <UploadCard leads={leads} sourceLabel={sourceLabel} onLoadLeads={handleLoadLeads} />
+      </div>
+
+      <div className="section">
+        <SectionHeading step="2" title="Define your Ideal Customer Profile" sub="Saved automatically to this browser" />
+        <IcpFormCard
+          profiles={profiles}
+          activeProfileId={activeProfileId}
+          draft={draft}
+          onDraftChange={setDraft}
+          onSelectProfile={handleSelectProfile}
+          onSaveProfile={handleSaveProfile}
+          onNewProfile={handleNewProfile}
+          onDeleteProfile={handleDeleteProfile}
+        />
+      </div>
+
+      <div className="section">
+        <SectionHeading step="3" title="Run the check" />
+        <RunBar
+          leadsCount={leads.length}
+          hasRun={hasRun}
+          isStale={isStale}
+          scoredCount={scoredLeads.length}
+          onRun={handleRunCheck}
+        />
+      </div>
+
+      <div className="section">
+        <SectionHeading step="4" title="Fit summary" sub={hasRun ? `${scoredLeads.length} leads scored` : undefined} />
+        {hasRun
+          ? <SummaryDashboard scoredLeads={scoredLeads} />
+          : <PlaceholderCard text={<>Run the ICP check above to see your fit summary here.</>} />}
+      </div>
+
+      <div className="section">
+        <SectionHeading step="5" title="Results" sub={hasRun ? 'Sort, filter, search, and export' : undefined} />
+        {hasRun
+          ? <ResultsCard scoredLeads={scoredLeads} />
+          : <PlaceholderCard text={<>Run the ICP check above to see scored leads here.</>} />}
+      </div>
+
+      <footer className="app-footer">
+        Lead Enrichment &amp; ICP Scoring — client-side prototype. No data leaves your device.
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
